@@ -1,9 +1,10 @@
 export const COLOURS = ['red', 'green', 'blue', 'yellow'];
 const MAX_X = 10;
 const MAX_Y = 10;
+const EMPTY_COLOUR = 'transparent';
 
-function copy(obj) {
-  return JSON.parse(JSON.stringify(obj));
+function copy (obj) {
+    return JSON.parse(JSON.stringify(obj));
 }
 
 export class Block {
@@ -54,75 +55,75 @@ export class BlockGrid {
         return this;
     }
 
+    // Dump all state and rerender.
     _purgeAndRender () {
-      document.getElementById('gridEl').innerHTML = "";
-      this.render();
+        document.getElementById('gridEl').innerHTML = '';
+        this.render();
     }
 
     _updateGrid (grid) {
-      this.grid = grid;
-      this._purgeAndRender();
+        this.grid = grid;
+        this._purgeAndRender();
     }
 
-    _setBlock (grid, block) {
-      const {x, y} = block;
-      const newGrid = copy(grid);
-      newGrid[x][y] = block;
-      return newGrid;
+    _getGrid () {
+        return copy(this.grid);
     }
 
-    _getGrid() {
-      return copy(this.grid);
+    _getCoords (x, y, grid) {
+        return grid[x] && grid[x][y];
     }
 
-    _getCoords(x, y, grid) {
-      return grid[x] && grid[x][y]
+    isEmpty (block = {}) {
+        return block.colour === EMPTY_COLOUR;
     }
 
-    _removedBlock (block) {
-      const newBlock = copy(block);
-      newBlock.colour = 'transparent';
-      return newBlock;
+    isMatchingNeighbour (blockA, blockB) {
+        if (this.isEmpty(blockA) ||
+            this.isEmpty(blockA)) {
+            return false;
+        }
+
+        return (blockA && blockA.colour) &&
+               (blockB && blockB.colour) &&
+               (blockA.colour === blockB.colour);
     }
 
-    isTransparent(block={}) {
-      return block.colour === 'transparent';
+    reorderColumns (grid) {
+        return grid.map((col) => {
+            const remainingBlocks = col.filter((block) => block.colour !== EMPTY_COLOUR);
+            const emptyBlocks = col.filter((block) => block.colour === EMPTY_COLOUR);
+            return remainingBlocks.concat(emptyBlocks)
+                .map((block, i) => {
+                    block.y = i;
+                    return block;
+                });
+        });
     }
 
-    isMatchingNeighbour(blockA, blockB) {
-      if (this.isTransparent(blockA) ||
-          this.isTransparent(blockA)) {
-        return false;
-      }
+    traverseAndRemoveMatchingNeighbours (block, grid) {
+        const coordTransformations = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+        const {x, y} = block;
 
-      return (blockA && blockA.colour) &&
-             (blockB && blockB.colour) &&
-             (blockA.colour === blockB.colour);
-    }
+        const matchingNeighbours = coordTransformations
+          .map(([xTransform, yTransform]) => this._getCoords(x + xTransform, y + yTransform, grid))
+          .filter((neighbouringBlock) => this.isMatchingNeighbour(block, neighbouringBlock));
 
-    traverseAndRemoveNeighbours(block, grid) {
-      console.log('traversing', block);
-      const coordTransformations = [[1, 0], [-1, 0], [0, 1], [0, -1]];
-      const {x, y} = block;
+        // TODO: Nasty mutation. Ideally we'd return some state as a result of traversing
+        // but this avoids infinite recursive loops for now.
+        this._getCoords(x, y, grid).colour = EMPTY_COLOUR;
 
-      const matchingNeighbours = coordTransformations
-        .map(([xTransform, yTransform]) => this._getCoords(x + xTransform, y + yTransform, grid))
-        .filter(neighbouringBlock => this.isMatchingNeighbour(block, neighbouringBlock))
-
-      // Nasty mutation. Ideally we'd return some state as a result of traversing
-      // but this avoids infinite recursive loops for now.
-      this._getCoords(x, y, grid).colour = 'transparent';
-
-      matchingNeighbours
-        .forEach(neighbouringBlock => {
-          this.traverseAndRemoveNeighbours(neighbouringBlock, grid);
+        matchingNeighbours.forEach((neighbouringBlock) => {
+            this.traverseAndRemoveMatchingNeighbours(neighbouringBlock, grid);
         });
     }
 
     blockClicked (e, block) {
-      const newGrid = this._getGrid();
-      this.traverseAndRemoveNeighbours(block, newGrid);
-      this._updateGrid(newGrid);
+        const newGrid = this._getGrid();
+        this.traverseAndRemoveMatchingNeighbours(block, newGrid);
+        this._updateGrid(
+          this.reorderColumns(newGrid)
+      );
     }
 }
 
