@@ -116,6 +116,8 @@ export class BlockGrid {
         matchingNeighbours.forEach((neighbouringBlock) => {
             this.traverseAndRemoveMatchingNeighbours(neighbouringBlock, grid);
         });
+
+        return grid;
     }
 
     blockClicked (e, block) {
